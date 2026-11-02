@@ -1,0 +1,33 @@
+groups:
+  - name: fakeapp
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum by (service) (rate(http_requests_total{status=~"5.."}[1m]))
+          / sum by (service) (rate(http_requests_total[1m])) > 0.05
+        for: 30s
+        labels: { severity: page }
+        annotations:
+          summary: "5xx rate above 5% on {{ $labels.service }}"
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m]))) > 0.5
+        for: 30s
+        labels: { severity: page }
+        annotations:
+          summary: "p95 latency above 500ms on {{ $labels.service }}"
+
+      - alert: HighMemory
+        expr: process_resident_memory_bytes{job="fakeapp"} > 400e6
+        for: 30s
+        labels: { severity: page }
+        annotations:
+          summary: "RSS above 400MB on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up{job="fakeapp"} == 0
+        for: 15s
+        labels: { severity: page }
+        annotations:
+          summary: "{{ $labels.instance }} is down"

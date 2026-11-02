@@ -1,0 +1,72 @@
+x-fakeapp: &fakeapp
+  build:
+    context: .
+    dockerfile: fakeapp/Dockerfile
+  environment: &fakeapp-env
+    LOG_DIR: /var/log/fakeapp
+    CHAOS_ADMIN_TOKEN: ${CHAOS_ADMIN_TOKEN:-change-me}
+    ORDERS_URL: http://orders:8000
+    PAYMENTS_URL: http://payments:8000
+    INVENTORY_URL: http://inventory:8000
+    DATABASE_URL: postgresql://copilot:copilot@postgres:5432/fakeapp
+  volumes:
+    - ./data/logs:/var/log/fakeapp
+  depends_on:
+    - postgres
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: copilot
+      POSTGRES_PASSWORD: copilot
+      POSTGRES_DB: copilot
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  gateway:
+    <<: *fakeapp
+    environment: { <<: *fakeapp-env, SERVICE_NAME: gateway }
+    ports: ["8000:8000"]
+
+  orders:
+    <<: *fakeapp
+    environment: { <<: *fakeapp-env, SERVICE_NAME: orders }
+    ports: ["8001:8000"]
+
+  payments:
+    <<: *fakeapp
+    environment: { <<: *fakeapp-env, SERVICE_NAME: payments }
+    ports: ["8002:8000"]
+
+  inventory:
+    <<: *fakeapp
+    environment: { <<: *fakeapp-env, SERVICE_NAME: inventory }
+    ports: ["8003:8000"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./infra/prometheus:/etc/prometheus:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports: ["9090:9090"]
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./infra/alertmanager:/etc/alertmanager:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    ports: ["9093:9093"]
+
+  loadgen:
+    <<: *fakeapp
+    environment: { <<: *fakeapp-env, SERVICE_NAME: loadgen, GATEWAY_URL: "http://gateway:8000" }
+    command: ["python", "-m", "fakeapp.loadgen"]
+    ports: []
+
+volumes:
+  pgdata:

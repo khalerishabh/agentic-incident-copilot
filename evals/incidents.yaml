@@ -1,0 +1,17 @@
+# Each incident: how to inject it, and the ground truth the copilot must recover.
+# Faults must only be observable through symptoms (no fault names in logs).
+- id: inc-001
+  inject: {service: payments, fault: error_rate, params: {probability: 0.4}}
+  ground_truth: {service: payments, category: error_rate, culprit_commit: null}
+
+- id: inc-002
+  inject: {service: inventory, fault: latency, params: {delay_ms: 1200}}
+  ground_truth: {service: inventory, category: latency, culprit_commit: null}
+
+- id: inc-003
+  inject: {service: orders, fault: memory_leak, params: {kb_per_request: 2048}}
+  ground_truth: {service: orders, category: memory_leak, culprit_commit: null}
+
+- id: inc-004
+  inject: {service: payments, fault: cpu_burn, params: {ms_per_request: 400}}
+  ground_truth: {service: payments, category: cpu_saturation, culprit_commit: null}

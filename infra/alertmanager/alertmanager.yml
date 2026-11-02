@@ -1,0 +1,12 @@
+route:
+  receiver: copilot
+  group_by: ["alertname", "service"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: copilot
+    webhook_configs:
+      - url: http://host.docker.internal:8080/alerts
+        send_resolved: false
