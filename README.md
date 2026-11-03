@@ -77,3 +77,5 @@ Alertmanager posts to `host.docker.internal:8080/alerts`, so the API on your mac
 4. Week 4: real supervisor + investigators + RCA writer with structured output
 5. Week 5: Langfuse tracing, eval harness over 20-30 incidents, N repeats each
 6. Week 6: results report, demo video
+
+
