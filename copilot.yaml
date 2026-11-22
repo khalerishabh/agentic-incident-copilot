@@ -1,0 +1,38 @@
+# Incident Copilot configuration. Secrets never go in this file:
+# API keys, tokens and database URLs come from environment variables (see .env.example).
+# Any value here can be overridden with COPILOT_<SECTION>__<KEY>, e.g. COPILOT_LLM__MODEL.
+
+environment: dev
+
+services:
+  - name: gateway
+    team: platform
+  - name: orders
+    team: commerce
+  - name: payments
+    team: payments
+  - name: inventory
+    team: commerce
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5
+  temperature: 0.0
+
+mcp:
+  logs_url: http://localhost:9101/mcp
+  metrics_url: http://localhost:9102/mcp
+  github_url: http://localhost:9103/mcp
+  runbook_url: http://localhost:9104/mcp
+
+budget:
+  tokens_per_incident: 60000
+
+guardrails:
+  dry_run: true
+  allowed_actions: [restart, scale, rollback, disable_flag]
+  max_replicas: 5
+
+executor:
+  backend: docker
+  kubernetes_namespaces: [default]
