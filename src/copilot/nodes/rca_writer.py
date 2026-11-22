@@ -2,7 +2,8 @@ from ..state import IncidentState, ProposedFix, RootCause
 
 
 async def rca_writer(state: IncidentState) -> dict:
-    """TODO week 4: query runbook MCP, then LLM with structured output -> RootCause + ProposedFix."""
+    """TODO M2: query the runbook MCP server, then call the LLM with structured
+    output to produce RootCause and ProposedFix."""
     alert = state["alert"]
     return {
         "root_cause": RootCause(

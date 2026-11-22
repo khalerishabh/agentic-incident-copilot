@@ -1,17 +1,25 @@
 from functools import lru_cache
 
+from langchain_core.language_models.chat_models import BaseChatModel
+
 from .config import settings
 
 
 @lru_cache
-def get_llm():
-    if settings.llm_provider == "anthropic":
+def get_llm() -> BaseChatModel:
+    cfg = settings.llm
+    if cfg.provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=settings.llm_model, temperature=0)
-    if settings.llm_provider == "openai":
+
+        return ChatAnthropic(model_name=cfg.model, temperature=cfg.temperature)  # type: ignore[call-arg]
+    if cfg.provider == "openai":
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(model=settings.llm_model, temperature=0)
-    if settings.llm_provider == "ollama":
-        from langchain_ollama import ChatOllama
-        return ChatOllama(model=settings.llm_model, base_url=settings.ollama_base_url, temperature=0)
-    raise ValueError(f"unknown provider {settings.llm_provider}")
+
+        return ChatOpenAI(model=cfg.model, temperature=cfg.temperature)
+    from langchain_ollama import ChatOllama
+
+    return ChatOllama(
+        model=cfg.model,
+        base_url=cfg.base_url or "http://localhost:11434",
+        temperature=cfg.temperature,
+    )

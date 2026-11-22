@@ -14,14 +14,19 @@ def approval_gate(state: IncidentState) -> dict:
     if violations:
         return {"approval": "blocked", "guardrail_violations": violations}
 
-    decision = interrupt({
-        "incident_id": state["incident_id"],
-        "root_cause": state["root_cause"].model_dump(),
-        "proposed_fix": fix.model_dump(),
-    })
+    root_cause = state.get("root_cause")
+    decision = interrupt(
+        {
+            "incident_id": state["incident_id"],
+            "root_cause": root_cause.model_dump() if root_cause else None,
+            "proposed_fix": fix.model_dump(),
+        }
+    )
     approved = bool(decision.get("approved"))
-    return {"approval": "approved" if approved else "rejected",
-            "reviewer_note": decision.get("note", "")}
+    return {
+        "approval": "approved" if approved else "rejected",
+        "reviewer_note": decision.get("note", ""),
+    }
 
 
 def after_approval(state: IncidentState) -> str:

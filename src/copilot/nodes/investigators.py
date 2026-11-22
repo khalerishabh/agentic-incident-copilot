@@ -2,17 +2,27 @@ from ..state import Evidence, IncidentState
 
 
 async def log_agent(state: IncidentState) -> dict:
-    """TODO week 3: ReAct loop over logs MCP tools (error_summary -> search_logs -> trace_request)."""
+    """TODO M2: tool-calling loop over the logs MCP server
+    (error_summary -> search_logs -> trace_request)."""
     alert = state["alert"]
-    return {"evidence": [Evidence(source="logs", summary=f"stub: logs not yet read for {alert.service}")]}
+    return {
+        "evidence": [
+            Evidence(source="logs", summary=f"stub: logs not yet read for {alert.service}")
+        ]
+    }
 
 
 async def metrics_agent(state: IncidentState) -> dict:
-    """TODO week 3: compare RED + resource metrics across services, find where the anomaly starts."""
+    """TODO M2: compare RED and resource metrics across services to find
+    where the anomaly starts, not where it is observed."""
     alert = state["alert"]
-    return {"evidence": [Evidence(source="metrics", summary=f"stub: metrics not yet read for {alert.service}")]}
+    return {
+        "evidence": [
+            Evidence(source="metrics", summary=f"stub: metrics not yet read for {alert.service}")
+        ]
+    }
 
 
 async def code_agent(state: IncidentState) -> dict:
-    """TODO week 3: list commits since shortly before alert start, inspect suspicious diffs."""
+    """TODO M2: list commits since shortly before alert start, inspect suspicious diffs."""
     return {"evidence": [Evidence(source="code", summary="stub: no commits inspected")]}
