@@ -82,13 +82,14 @@ def create_app(service: str, router: APIRouter) -> FastAPI:
         return {"active": chaos.active, "supported": SUPPORTED_FAULTS}
 
     @app.post("/chaos/{fault}")
-    async def chaos_enable(fault: str, params: dict | None = None,
-                           x_chaos_token: str | None = Header(default=None)):
+    async def chaos_enable(
+        fault: str, params: dict | None = None, x_chaos_token: str | None = Header(default=None)
+    ):
         _check(x_chaos_token)
         try:
             return {"enabled": fault, "params": chaos.enable(fault, params)}
         except KeyError:
-            raise HTTPException(404, f"unknown fault {fault}")
+            raise HTTPException(404, f"unknown fault {fault}") from None
 
     @app.delete("/chaos/{fault}")
     async def chaos_disable(fault: str, x_chaos_token: str | None = Header(default=None)):
@@ -100,21 +101,32 @@ def create_app(service: str, router: APIRouter) -> FastAPI:
     return app
 
 
-async def call_upstream(request: Request, method: str, url: str, upstream: str,
-                        service: str, **kwargs) -> httpx.Response:
+async def call_upstream(
+    request: Request, method: str, url: str, upstream: str, service: str, **kwargs
+) -> httpx.Response:
     log = logging.getLogger(service)
     headers = {"x-request-id": getattr(request.state, "request_id", "")}
     try:
         resp = await request.app.state.http.request(method, url, headers=headers, **kwargs)
         if resp.status_code >= 500:
             UPSTREAM_ERRORS.labels(service, upstream).inc()
-            log.error(f"{upstream} returned {resp.status_code}",
-                      extra={"upstream": upstream, "status": resp.status_code,
-                             "request_id": headers["x-request-id"]})
+            log.error(
+                f"{upstream} returned {resp.status_code}",
+                extra={
+                    "upstream": upstream,
+                    "status": resp.status_code,
+                    "request_id": headers["x-request-id"],
+                },
+            )
         return resp
     except httpx.HTTPError as exc:
         UPSTREAM_ERRORS.labels(service, upstream).inc()
-        log.error(f"call to {upstream} failed",
-                  extra={"upstream": upstream, "error": type(exc).__name__,
-                         "request_id": headers["x-request-id"]})
-        raise HTTPException(502, f"{upstream} unavailable")
+        log.error(
+            f"call to {upstream} failed",
+            extra={
+                "upstream": upstream,
+                "error": type(exc).__name__,
+                "request_id": headers["x-request-id"],
+            },
+        )
+        raise HTTPException(502, f"{upstream} unavailable") from exc
