@@ -5,8 +5,16 @@ from pydantic import BaseModel, Field
 
 AgentName = Literal["log_agent", "metrics_agent", "code_agent"]
 FaultCategory = Literal[
-    "latency", "error_rate", "memory_leak", "cpu_saturation", "db_pool_exhaustion",
-    "slow_query", "bad_config", "bad_deploy", "dependency_timeout", "unknown",
+    "latency",
+    "error_rate",
+    "memory_leak",
+    "cpu_saturation",
+    "db_pool_exhaustion",
+    "slow_query",
+    "bad_config",
+    "bad_deploy",
+    "dependency_timeout",
+    "unknown",
 ]
 
 

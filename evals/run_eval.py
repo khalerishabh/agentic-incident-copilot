@@ -9,6 +9,7 @@ for each incident x system in (baseline, multi_agent) x N repeats:
 then aggregate: accuracy, mean time to diagnosis, tokens and cost per incident,
 tool-call failure rate, with mean and std across repeats.
 """
+
 from pathlib import Path
 
 import yaml

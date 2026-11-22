@@ -1,7 +1,7 @@
 import json
 import os
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -16,7 +16,7 @@ def _read(service: str, since_minutes: int):
     path = LOG_DIR / f"{service}.log"
     if not path.exists():
         return
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=since_minutes)
     with path.open() as fh:
         for line in fh:
             try:
@@ -43,7 +43,7 @@ def error_summary(service: str, since_minutes: int = 15) -> dict:
     for rec in _read(service, since_minutes):
         total += 1
         if rec["level"] in ("WARNING", "ERROR", "CRITICAL"):
-            key = f'{rec["level"]}: {rec["msg"]}'
+            key = f"{rec['level']}: {rec['msg']}"
             counts[key] += 1
             first_seen.setdefault(key, rec["ts"])
     return {
@@ -57,12 +57,14 @@ def error_summary(service: str, since_minutes: int = 15) -> dict:
 
 
 @mcp.tool
-def search_logs(service: str, contains: str = "", level: str = "", since_minutes: int = 15,
-                limit: int = 20) -> list[dict]:
+def search_logs(
+    service: str, contains: str = "", level: str = "", since_minutes: int = 15, limit: int = 20
+) -> list[dict]:
     """Return the most recent matching log lines for a service (capped)."""
     limit = min(limit, MAX_LINES_RETURNED)
     hits = [
-        r for r in _read(service, since_minutes)
+        r
+        for r in _read(service, since_minutes)
         if (not level or r["level"] == level.upper()) and contains.lower() in json.dumps(r).lower()
     ]
     return hits[-limit:]
