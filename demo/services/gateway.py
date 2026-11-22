@@ -3,7 +3,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from fakeapp.common.app_factory import call_upstream
+from demo.common.app_factory import call_upstream
 
 SERVICE = "gateway"
 ORDERS = os.getenv("ORDERS_URL", "http://orders:8000")

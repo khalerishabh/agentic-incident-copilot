@@ -3,7 +3,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
-from fakeapp.common.app_factory import call_upstream
+from demo.common.app_factory import call_upstream
 
 SERVICE = "orders"
 PAYMENTS = os.getenv("PAYMENTS_URL", "http://payments:8000")
@@ -17,13 +17,20 @@ async def create_order(request: Request, body: dict):
     sku = body.get("sku", "SKU-1")
     qty = int(body.get("qty", 1))
 
-    reserve = await call_upstream(request, "POST", f"{INVENTORY}/reserve", "inventory", SERVICE,
-                                  json={"sku": sku, "qty": qty})
+    reserve = await call_upstream(
+        request, "POST", f"{INVENTORY}/reserve", "inventory", SERVICE, json={"sku": sku, "qty": qty}
+    )
     if reserve.status_code != 200:
         raise HTTPException(reserve.status_code, "reservation failed")
 
-    charge = await call_upstream(request, "POST", f"{PAYMENTS}/charge", "payments", SERVICE,
-                                 json={"amount": reserve.json()["price"] * qty})
+    charge = await call_upstream(
+        request,
+        "POST",
+        f"{PAYMENTS}/charge",
+        "payments",
+        SERVICE,
+        json={"amount": reserve.json()["price"] * qty},
+    )
     if charge.status_code != 200:
         raise HTTPException(charge.status_code, "payment failed")
 
