@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastmcp import FastMCP
@@ -21,7 +21,7 @@ def _headers() -> dict:
 @mcp.tool
 def recent_commits(since_hours: int = 24, path: str = "") -> list[dict]:
     """Commits on the default branch in the last N hours, optionally touching a path."""
-    since = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).isoformat()
+    since = (datetime.now(UTC) - timedelta(hours=since_hours)).isoformat()
     params = {"since": since, "per_page": 30}
     if path:
         params["path"] = path

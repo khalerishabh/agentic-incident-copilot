@@ -11,9 +11,12 @@ def _query(promql: str) -> list[dict]:
     r = httpx.get(f"{PROM}/api/v1/query", params={"query": promql}, timeout=10)
     r.raise_for_status()
     return [
-        {"labels": s["metric"], "value": float(s["value"][1])}
-        for s in r.json()["data"]["result"]
+        {"labels": s["metric"], "value": float(s["value"][1])} for s in r.json()["data"]["result"]
     ]
+
+
+def _first(res: list[dict]) -> float:
+    return res[0]["value"] if res else 0.0
 
 
 @mcp.tool
@@ -27,13 +30,12 @@ def service_red(service: str, window: str = "2m") -> dict:
         "histogram_quantile(0.95, sum by (le) "
         f'(rate(http_request_duration_seconds_bucket{{service="{service}"}}[{window}])))'
     )
-    val = lambda res: res[0]["value"] if res else 0.0
-    rps = val(rate)
+    rps = _first(rate)
     return {
         "service": service,
         "rps": round(rps, 3),
-        "error_ratio": round(val(errors) / rps, 4) if rps else 0.0,
-        "p95_seconds": round(val(p95), 3),
+        "error_ratio": round(_first(errors) / rps, 4) if rps else 0.0,
+        "p95_seconds": round(_first(p95), 3),
     }
 
 
