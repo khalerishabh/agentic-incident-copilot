@@ -11,6 +11,8 @@ x-demo-app: &demo
     DATABASE_URL: postgresql://copilot:copilot@postgres:5432/demo
   volumes:
     - ./data/logs:/var/log/demo
+  labels:
+    incident.copilot.logs: "true"
   depends_on:
     - postgres
 
@@ -66,7 +68,31 @@ services:
     <<: *demo
     environment: { <<: *demo-env, SERVICE_NAME: loadgen, GATEWAY_URL: "http://gateway:8000" }
     command: ["python", "-m", "demo.loadgen"]
+    labels:
+      incident.copilot.logs: "false"
     ports: []
+
+  loki:
+    image: grafana/loki:3.7.4
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports: ["3100:3100"]
+    volumes:
+      - lokidata:/loki
+
+  alloy:
+    image: grafana/alloy:v1.21.0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports: ["12345:12345"]
+    depends_on:
+      - loki
 
 volumes:
   pgdata:
+  lokidata:
