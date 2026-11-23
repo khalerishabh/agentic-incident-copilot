@@ -15,7 +15,9 @@ demo/                    sandbox microservices we break on purpose (demos and te
   inject.py              CLI to enable/disable faults
   loadgen.py             steady background traffic
 src/mcp_servers/         read-only MCP servers (FastMCP, streamable HTTP)
-  logs/      :9101       error_summary, search_logs, trace_request
+  common/                retrying HTTP client, input validation, tool error handling
+  logs/      :9101       error_summary, search_logs, trace_request, list_services
+                         backends: Loki (default) or local files (dev only)
   metrics/   :9102       service_red, resource_usage, upstream_errors, run_promql
   github/    :9103       recent_commits, commit_diff
   runbook/   :9104       search_runbooks, get_runbook (keyword v0, pgvector later)
@@ -55,7 +57,7 @@ python -m demo.inject disable payments error_rate
 Run the MCP servers and the copilot API locally (one terminal each):
 
 ```powershell
-$env:LOG_DIR="./data/logs"; python -m mcp_servers.logs.server
+python -m mcp_servers.logs.server
 python -m mcp_servers.metrics.server
 python -m mcp_servers.github.server
 python -m mcp_servers.runbook.server
@@ -75,6 +77,32 @@ Secrets never go in `copilot.yaml`. Keys named like `*_token`, `*_api_key`, `*_p
 environment instead (see `.env.example`).
 
 An empty `services` list means no fix can target anything, so a misconfigured install is safe.
+
+## Integrations
+
+Each MCP server talks to one kind of system through a backend chosen in `copilot.yaml`.
+Every backend call has a timeout and retries timeouts, connection errors, 429 and 502-504
+with exponential backoff. Other errors fail fast. Failures reach the agent as readable tool
+errors (for example `logs/loki: unavailable after 3 attempts (timed out) (temporary, retry later)`)
+instead of crashing the run. Tool inputs such as service names and request ids are validated
+before any query is built.
+
+### Logs
+
+| Backend | Use for | How it finds a service |
+|---------|---------|------------------------|
+| `loki`  | the demo stack and real installs | stream label set by `service_label` |
+| `file`  | quick local runs only | `<directory>/<service>.log` |
+
+Field names inside log lines are configurable under `integrations.logs.fields`, so any JSON
+log schema works. Loki multi-tenancy (`tenant_id`) and basic auth are supported; the password
+comes only from `COPILOT_INTEGRATIONS__LOGS__LOKI__PASSWORD`.
+
+The demo stack runs Loki on `:3100` and Grafana Alloy on `:12345`. Alloy ships the stdout of
+every container labelled `incident.copilot.logs: "true"` to Loki, with a `service` label taken
+from the Compose service name. To ship your own services' logs, add that label to them.
+
+Each MCP server also serves `/healthz` and `/readyz`; `/readyz` checks its backend.
 
 ## Operating the copilot
 

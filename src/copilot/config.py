@@ -52,6 +52,47 @@ class ExecutorConfig(BaseModel):
     kubernetes_namespaces: list[str] = Field(default_factory=lambda: ["default"])
 
 
+IDENTIFIER = r"^[A-Za-z_][A-Za-z0-9_]*$"
+
+
+class LogFieldMap(BaseModel):
+    """Names of the fields inside each log line, so any JSON log schema can be read."""
+
+    timestamp: str = Field(default="ts", pattern=IDENTIFIER)
+    level: str = Field(default="level", pattern=IDENTIFIER)
+    message: str = Field(default="msg", pattern=IDENTIFIER)
+    request_id: str = Field(default="request_id", pattern=IDENTIFIER)
+
+
+class LokiConfig(BaseModel):
+    url: str = "http://localhost:3100"
+    tenant_id: str | None = None
+    username: str | None = None
+    password: SecretStr | None = None
+    line_format: Literal["json", "logfmt"] = "json"
+    timeout_seconds: float = Field(default=10.0, gt=0)
+    max_attempts: int = Field(default=3, ge=1, le=6)
+
+
+class FileLogsConfig(BaseModel):
+    directory: Path = Path("./data/logs")
+
+
+class LogsIntegration(BaseModel):
+    backend: Literal["loki", "file"] = "file"
+    service_label: str = Field(default="service", pattern=IDENTIFIER)
+    fields: LogFieldMap = Field(default_factory=LogFieldMap)
+    max_lines: int = Field(default=50, ge=1, le=500)
+    max_scan_lines: int = Field(default=2000, ge=100, le=20000)
+    max_window_minutes: int = Field(default=1440, ge=1)
+    loki: LokiConfig = Field(default_factory=LokiConfig)
+    file: FileLogsConfig = Field(default_factory=FileLogsConfig)
+
+
+class IntegrationsConfig(BaseModel):
+    logs: LogsIntegration = Field(default_factory=LogsIntegration)
+
+
 class SecretsInConfigError(ValueError):
     pass
 
@@ -97,6 +138,7 @@ class Settings(BaseSettings):
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     guardrails: GuardrailConfig = Field(default_factory=GuardrailConfig)
     executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
+    integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
 
     postgres_url: SecretStr = SecretStr("postgresql://copilot:copilot@localhost:5432/copilot")
 

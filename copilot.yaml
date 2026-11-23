@@ -33,6 +33,28 @@ guardrails:
   allowed_actions: [restart, scale, rollback, disable_flag]
   max_replicas: 5
 
+integrations:
+  logs:
+    # loki for the demo stack and real installs; file reads ./data/logs for quick local runs.
+    backend: loki
+    service_label: service
+    fields:
+      timestamp: ts
+      level: level
+      message: msg
+      request_id: request_id
+    max_lines: 50
+    max_scan_lines: 2000
+    loki:
+      url: http://localhost:3100
+      line_format: json
+      timeout_seconds: 10
+      max_attempts: 3
+      # tenant_id: team-a
+      # username: copilot        # password: set COPILOT_INTEGRATIONS__LOGS__LOKI__PASSWORD
+    file:
+      directory: ./data/logs
+
 executor:
   backend: docker
   kubernetes_namespaces: [default]
