@@ -36,8 +36,15 @@ async def main() -> int:
         print(__doc__)
         return 2
     server, tool = sys.argv[1], sys.argv[2]
-    async with Client(SERVERS[server]) as client:
-        result = await client.call_tool(tool, parse_args(sys.argv[3:]), raise_on_error=False)
+    try:
+        async with Client(SERVERS[server]) as client:
+            result = await client.call_tool(tool, parse_args(sys.argv[3:]), raise_on_error=False)
+    except RuntimeError as exc:
+        if "failed to connect" not in str(exc).lower():
+            raise
+        print(f"Could not reach the {server} MCP server at {SERVERS[server]}.")
+        print(f"Start it in another terminal: python -m mcp_servers.{server}.server")
+        return 1
     if result.is_error:
         print("TOOL ERROR:", result.content[0].text)
         return 1

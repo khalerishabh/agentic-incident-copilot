@@ -4,15 +4,25 @@
 
 environment: dev
 
+# Every service the copilot may investigate and act on. repo/paths let the code agent find
+# the commits that touched a service; branch defaults to the repository's default branch.
 services:
   - name: gateway
     team: platform
+    repo: khalerishabh/agentic-incident-copilot
+    paths: [demo/services/gateway.py, demo/common]
   - name: orders
     team: commerce
+    repo: khalerishabh/agentic-incident-copilot
+    paths: [demo/services/orders.py, demo/common]
   - name: payments
     team: payments
+    repo: khalerishabh/agentic-incident-copilot
+    paths: [demo/services/payments.py, demo/common]
   - name: inventory
     team: commerce
+    repo: khalerishabh/agentic-incident-copilot
+    paths: [demo/services/inventory.py, demo/common]
 
 llm:
   provider: anthropic
@@ -54,6 +64,38 @@ integrations:
       # username: copilot        # password: set COPILOT_INTEGRATIONS__LOGS__LOKI__PASSWORD
     file:
       directory: ./data/logs
+
+  metrics:
+    # Works with Prometheus and anything that speaks its API (Mimir, Thanos, VictoriaMetrics).
+    service_label: service
+    # resource_service_label: container   # if memory/CPU series use a different label
+    names:
+      requests_total: http_requests_total
+      duration_bucket: http_request_duration_seconds_bucket
+      status_label: status
+      error_status_regex: "5.."
+      upstream_errors_total: upstream_errors_total
+      upstream_label: upstream
+      memory_bytes: process_resident_memory_bytes
+      cpu_seconds_total: process_cpu_seconds_total
+    allow_raw_promql: true
+    max_series: 50
+    prometheus:
+      url: http://localhost:9090
+      query_timeout: 10s
+      timeout_seconds: 15
+      max_attempts: 3
+      # username: copilot   # password: COPILOT_INTEGRATIONS__METRICS__PROMETHEUS__PASSWORD
+      # bearer token: COPILOT_INTEGRATIONS__METRICS__PROMETHEUS__BEARER_TOKEN
+
+  code:
+    github:
+      api_url: https://api.github.com   # GitHub Enterprise: https://<host>/api/v3
+      # token: set GITHUB_TOKEN or COPILOT_INTEGRATIONS__CODE__GITHUB__TOKEN
+      max_commits: 30
+      max_files: 20
+      max_patch_chars: 4000
+      max_total_patch_chars: 20000
 
 executor:
   backend: docker

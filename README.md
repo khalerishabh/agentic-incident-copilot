@@ -16,11 +16,12 @@ demo/                    sandbox microservices we break on purpose (demos and te
   loadgen.py             steady background traffic
 src/mcp_servers/         read-only MCP servers (FastMCP, streamable HTTP)
   common/                retrying HTTP client, input validation, tool error handling
-  logs/      :9101       error_summary, search_logs, trace_request, list_services
+  logs/      :9101       list_services, error_summary, search_logs, trace_request
                          backends: Loki (default) or local files (dev only)
-  metrics/   :9102       service_red, resource_usage, upstream_errors, run_promql
-  github/    :9103       recent_commits, commit_diff
-  runbook/   :9104       search_runbooks, get_runbook (keyword v0, pgvector later)
+  metrics/   :9102       compare_services, service_red, red_timeline, resource_usage,
+                         upstream_errors, run_promql (Prometheus HTTP API)
+  github/    :9103       service_repos, recent_commits, commit_diff
+  runbook/   :9104       search_runbooks, get_runbook (keyword v0, pgvector in M1 PR3)
 src/copilot/             the LangGraph agent
   state.py               typed state (Alert, Evidence, RootCause, ProposedFix)
   graph.py               supervisor -> investigators -> rca_writer -> approval -> executor
@@ -101,6 +102,28 @@ comes only from `COPILOT_INTEGRATIONS__LOGS__LOKI__PASSWORD`.
 The demo stack runs Loki on `:3100` and Grafana Alloy on `:12345`. Alloy ships the stdout of
 every container labelled `incident.copilot.logs: "true"` to Loki, with a `service` label taken
 from the Compose service name. To ship your own services' logs, add that label to them.
+
+### Metrics
+
+Queries use the Prometheus HTTP API, so Prometheus, Mimir, Thanos and VictoriaMetrics all work.
+Metric and label names live under `integrations.metrics.names`, so services instrumented
+with other conventions (for example Spring's `http_server_requests_seconds_count` with a `code`
+label) need only config changes. Two tools return hints rather than verdicts:
+
+- `red_timeline` reports when error ratio and p95 first rose and stayed up, to line a problem
+  up with deploys and log events.
+- `upstream_errors` names `likely_origins`: failing callees whose own downstream calls are
+  healthy. When payments fails, orders and gateway fail too; this points at payments.
+
+`run_promql` is an escape hatch for the agent. Turn it off with `allow_raw_promql: false`.
+
+### Code
+
+Each service maps to a repository and the paths that hold its code (`services[].repo`,
+`paths`, optional `branch`), so `recent_commits` returns only commits that touched that
+service. `commit_diff` lists the service's own files first, skips lock files and binaries,
+and caps patch size per file and per commit. Set `GITHUB_TOKEN` to a read-only token;
+without one GitHub allows 60 requests an hour. `api_url` supports GitHub Enterprise Server.
 
 Each MCP server also serves `/healthz` and `/readyz`; `/readyz` checks its backend.
 

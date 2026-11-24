@@ -25,7 +25,15 @@ class ChaosState:
     def enable(self, fault: str, params: dict | None = None) -> dict:
         if fault not in SUPPORTED_FAULTS:
             raise KeyError(fault)
-        merged = {**SUPPORTED_FAULTS[fault], **(params or {})}
+        defaults = SUPPORTED_FAULTS[fault]
+        merged = dict(defaults)
+        for key, value in (params or {}).items():
+            if key not in defaults:
+                raise ValueError(f"{fault} has no parameter {key!r}; known: {sorted(defaults)}")
+            try:
+                merged[key] = type(defaults[key])(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{key} must be a number") from exc
         self.active[fault] = merged
         return merged
 

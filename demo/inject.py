@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 import httpx
@@ -20,7 +21,7 @@ def main() -> None:
     if args.action == "status":
         r = httpx.get(f"{base}/chaos", headers=headers)
     elif args.action == "enable":
-        params = {k: float(v) for k, v in (kv.split("=", 1) for kv in args.param)}
+        params = {k: json.loads(v) for k, v in (kv.split("=", 1) for kv in args.param)}
         r = httpx.post(f"{base}/chaos/{args.fault}", json=params or None, headers=headers)
     else:
         r = httpx.delete(f"{base}/chaos/{args.fault}", headers=headers)
