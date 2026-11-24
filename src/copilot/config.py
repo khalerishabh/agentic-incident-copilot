@@ -18,9 +18,17 @@ CONFIG_PATH = Path(os.getenv("COPILOT_CONFIG", "copilot.yaml"))
 SECRET_KEY_PATTERN = re.compile(r"(^|_)(api_key|token|password|secret|postgres_url|dsn)$", re.I)
 
 
+REPO = r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+METRIC = r"^[a-zA-Z_:][a-zA-Z0-9_:]*$"
+SAFE_REGEX = r'^[^"\\]+$'
+
+
 class ServiceConfig(BaseModel):
-    name: str
+    name: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
     team: str = ""
+    repo: str | None = Field(default=None, pattern=REPO)
+    branch: str | None = None
+    paths: list[str] = Field(default_factory=list)
 
 
 class LLMConfig(BaseModel):
@@ -89,8 +97,59 @@ class LogsIntegration(BaseModel):
     file: FileLogsConfig = Field(default_factory=FileLogsConfig)
 
 
+class MetricNames(BaseModel):
+    """Metric and label names, so the tools work with any instrumentation conventions."""
+
+    requests_total: str = Field(default="http_requests_total", pattern=METRIC)
+    duration_bucket: str = Field(default="http_request_duration_seconds_bucket", pattern=METRIC)
+    status_label: str = Field(default="status", pattern=IDENTIFIER)
+    error_status_regex: str = Field(default="5..", pattern=SAFE_REGEX)
+    upstream_errors_total: str | None = Field(default="upstream_errors_total", pattern=METRIC)
+    upstream_label: str = Field(default="upstream", pattern=IDENTIFIER)
+    memory_bytes: str = Field(default="process_resident_memory_bytes", pattern=METRIC)
+    cpu_seconds_total: str = Field(default="process_cpu_seconds_total", pattern=METRIC)
+
+
+class PrometheusConfig(BaseModel):
+    url: str = "http://localhost:9090"
+    username: str | None = None
+    password: SecretStr | None = None
+    bearer_token: SecretStr | None = None
+    query_timeout: str = Field(default="10s", pattern=r"^\d+[smh]$")
+    timeout_seconds: float = Field(default=15.0, gt=0)
+    max_attempts: int = Field(default=3, ge=1, le=6)
+
+
+class MetricsIntegration(BaseModel):
+    service_label: str = Field(default="service", pattern=IDENTIFIER)
+    resource_service_label: str | None = Field(default=None, pattern=IDENTIFIER)
+    names: MetricNames = Field(default_factory=MetricNames)
+    allow_raw_promql: bool = True
+    max_series: int = Field(default=50, ge=1, le=500)
+    max_window_minutes: int = Field(default=1440, ge=1)
+    max_points: int = Field(default=120, ge=10, le=1000)
+    prometheus: PrometheusConfig = Field(default_factory=PrometheusConfig)
+
+
+class GitHubConfig(BaseModel):
+    api_url: str = "https://api.github.com"
+    token: SecretStr | None = None
+    timeout_seconds: float = Field(default=15.0, gt=0)
+    max_attempts: int = Field(default=3, ge=1, le=6)
+    max_commits: int = Field(default=30, ge=1, le=100)
+    max_files: int = Field(default=20, ge=1, le=100)
+    max_patch_chars: int = Field(default=4000, ge=200)
+    max_total_patch_chars: int = Field(default=20000, ge=1000)
+
+
+class CodeIntegration(BaseModel):
+    github: GitHubConfig = Field(default_factory=GitHubConfig)
+
+
 class IntegrationsConfig(BaseModel):
     logs: LogsIntegration = Field(default_factory=LogsIntegration)
+    metrics: MetricsIntegration = Field(default_factory=MetricsIntegration)
+    code: CodeIntegration = Field(default_factory=CodeIntegration)
 
 
 class SecretsInConfigError(ValueError):
@@ -158,6 +217,9 @@ class Settings(BaseSettings):
             _SecretFreeYamlSource(settings_cls),
             file_secret_settings,
         )
+
+    def service(self, name: str) -> ServiceConfig | None:
+        return next((s for s in self.services if s.name == name), None)
 
     @property
     def service_names(self) -> set[str]:

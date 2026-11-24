@@ -90,6 +90,8 @@ def create_app(service: str, router: APIRouter) -> FastAPI:
             return {"enabled": fault, "params": chaos.enable(fault, params)}
         except KeyError:
             raise HTTPException(404, f"unknown fault {fault}") from None
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
 
     @app.delete("/chaos/{fault}")
     async def chaos_disable(fault: str, x_chaos_token: str | None = Header(default=None)):

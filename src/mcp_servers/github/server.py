@@ -1,63 +1,58 @@
 import os
-from datetime import UTC, datetime, timedelta
+from typing import Any
 
-import httpx
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
-REPO = os.getenv("GITHUB_REPO", "")
-API = "https://api.github.com"
-MAX_PATCH_CHARS = 4000
+from copilot.config import settings
+from copilot.telemetry import setup_logging
 
+from ..common.server import health_payload, tool_errors
+from .client import GitHubClient
+from .tools import CodeTools
+
+client = GitHubClient(settings.integrations.code.github)
+tools = CodeTools(client, settings)
 mcp = FastMCP("github")
 
 
-def _headers() -> dict:
-    h = {"Accept": "application/vnd.github+json"}
-    if token := os.getenv("GITHUB_TOKEN"):
-        h["Authorization"] = f"Bearer {token}"
-    return h
+@mcp.tool
+@tool_errors
+async def service_repos() -> list[dict[str, Any]]:
+    """Which repository, branch and paths hold each service's code."""
+    return await tools.service_repos()
 
 
 @mcp.tool
-def recent_commits(since_hours: int = 24, path: str = "") -> list[dict]:
-    """Commits on the default branch in the last N hours, optionally touching a path."""
-    since = (datetime.now(UTC) - timedelta(hours=since_hours)).isoformat()
-    params = {"since": since, "per_page": 30}
-    if path:
-        params["path"] = path
-    r = httpx.get(f"{API}/repos/{REPO}/commits", params=params, headers=_headers(), timeout=15)
-    r.raise_for_status()
-    return [
-        {
-            "sha": c["sha"][:10],
-            "message": c["commit"]["message"].splitlines()[0],
-            "author": c["commit"]["author"]["name"],
-            "date": c["commit"]["author"]["date"],
-        }
-        for c in r.json()
-    ]
+@tool_errors
+async def recent_commits(service: str, since_hours: int = 24) -> dict[str, Any]:
+    """Commits in the last N hours that touched a service's code, newest first."""
+    return await tools.recent_commits(service, since_hours)
 
 
 @mcp.tool
-def commit_diff(sha: str) -> dict:
-    """Files changed by a commit, with truncated patches."""
-    r = httpx.get(f"{API}/repos/{REPO}/commits/{sha}", headers=_headers(), timeout=15)
-    r.raise_for_status()
-    data = r.json()
-    return {
-        "sha": data["sha"][:10],
-        "message": data["commit"]["message"],
-        "files": [
-            {
-                "filename": f["filename"],
-                "additions": f["additions"],
-                "deletions": f["deletions"],
-                "patch": (f.get("patch") or "")[:MAX_PATCH_CHARS],
-            }
-            for f in data.get("files", [])
-        ],
-    }
+@tool_errors
+async def commit_diff(service: str, sha: str) -> dict[str, Any]:
+    """Files changed by one commit with truncated patches; files under the service's paths
+    come first. Lock files and binaries are listed but not shown."""
+    return await tools.commit_diff(service, sha)
+
+
+@mcp.custom_route("/healthz", methods=["GET"])
+async def healthz(_: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/readyz", methods=["GET"])
+async def readyz(_: Request) -> JSONResponse:
+    try:
+        info = await client.ping()
+    except Exception as exc:
+        return JSONResponse(health_payload("github", client.name, exc), status_code=503)
+    return JSONResponse({**health_payload("github", client.name, None), **info})
 
 
 if __name__ == "__main__":
+    setup_logging()
     mcp.run(transport="http", host="0.0.0.0", port=int(os.getenv("PORT", "9103")))

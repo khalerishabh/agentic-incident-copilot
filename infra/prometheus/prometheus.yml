@@ -12,5 +12,16 @@ alerting:
 
 scrape_configs:
   - job_name: demo
+    # The demo apps already label their request metrics with `service`. honor_labels keeps
+    # those, and the target labels below add `service` to process metrics (memory, CPU),
+    # so every series can be selected by service.
+    honor_labels: true
     static_configs:
-      - targets: ["gateway:8000", "orders:8000", "payments:8000", "inventory:8000"]
+      - targets: ["gateway:8000"]
+        labels: { service: gateway }
+      - targets: ["orders:8000"]
+        labels: { service: orders }
+      - targets: ["payments:8000"]
+        labels: { service: payments }
+      - targets: ["inventory:8000"]
+        labels: { service: inventory }

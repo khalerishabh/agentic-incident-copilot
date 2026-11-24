@@ -45,10 +45,12 @@ async def request(
     *,
     integration: str,
     policy: RetryPolicy,
+    accept_status: frozenset[int] = frozenset(),
     **kwargs: Any,
 ) -> httpx.Response:
     """Send a request, retrying timeouts, connection errors, 429 and 5xx gateway errors.
-    Other 4xx responses are caller mistakes and fail immediately."""
+    Other 4xx responses are caller mistakes and fail immediately, unless listed in
+    accept_status, in which case they are returned for the caller to interpret."""
     last_problem = "no attempt made"
     for attempt in range(1, policy.max_attempts + 1):
         retry_after = None
@@ -59,7 +61,7 @@ async def request(
         except httpx.TransportError as exc:
             last_problem = f"connection failed ({type(exc).__name__})"
         else:
-            if resp.status_code < 400:
+            if resp.status_code < 400 or resp.status_code in accept_status:
                 return resp
             if resp.status_code not in RETRYABLE_STATUS:
                 raise IntegrationError(integration, f"HTTP {resp.status_code}: {_short(resp.text)}")
