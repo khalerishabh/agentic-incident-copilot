@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any, Literal
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import (
     BaseSettings,
@@ -13,6 +14,10 @@ from pydantic_settings import (
 
 FixAction = Literal["rollback", "restart", "scale", "disable_flag"]
 ALL_ACTIONS: list[FixAction] = ["rollback", "restart", "scale", "disable_flag"]
+
+# Plain variables in .env (GITHUB_TOKEN, OPENAI_API_KEY, LANGFUSE_*) are read by libraries
+# straight from the environment, so load the file into it. Real env vars still win.
+load_dotenv(override=False)
 
 CONFIG_PATH = Path(os.getenv("COPILOT_CONFIG", "copilot.yaml"))
 SECRET_KEY_PATTERN = re.compile(r"(^|_)(api_key|token|password|secret|postgres_url|dsn)$", re.I)

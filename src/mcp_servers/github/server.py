@@ -1,4 +1,3 @@
-import os
 from typing import Any
 
 from fastmcp import FastMCP
@@ -6,8 +5,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from copilot.config import settings
-from copilot.telemetry import setup_logging
 
+from ..common.runtime import serve
 from ..common.server import health_payload, tool_errors
 from .client import GitHubClient
 from .tools import CodeTools
@@ -54,5 +53,4 @@ async def readyz(_: Request) -> JSONResponse:
 
 
 if __name__ == "__main__":
-    setup_logging()
-    mcp.run(transport="http", host="0.0.0.0", port=int(os.getenv("PORT", "9103")))
+    serve(mcp, 9103)
