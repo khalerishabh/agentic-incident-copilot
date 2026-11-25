@@ -60,3 +60,17 @@ def test_disallowed_action_is_blocked(tmp_path):
     cfg = _load(path)
     assert check_fix(ProposedFix(action="restart", target="orders"), cfg) == []
     assert check_fix(ProposedFix(action="scale", target="orders", params={"replicas": 2}), cfg)
+
+
+def test_plain_variables_in_dotenv_reach_the_environment(tmp_path, monkeypatch):
+    import os
+
+    from dotenv import load_dotenv
+
+    (tmp_path / ".env").write_text("GITHUB_TOKEN=from-dotenv\n")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    load_dotenv(tmp_path / ".env", override=False)
+    assert os.environ["GITHUB_TOKEN"] == "from-dotenv"
+    monkeypatch.setenv("GITHUB_TOKEN", "real-env-wins")
+    load_dotenv(tmp_path / ".env", override=False)
+    assert os.environ["GITHUB_TOKEN"] == "real-env-wins"

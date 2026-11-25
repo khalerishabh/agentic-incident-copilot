@@ -6,13 +6,13 @@ Safe to run repeatedly: only new or changed sections are embedded, and sections 
 deleted runbooks are removed. Changing the embedding model rebuilds the index.
 """
 
-import asyncio
 import json
 import sys
 
 from copilot.config import settings
 
 from ..common.errors import IntegrationError
+from ..common.runtime import run
 from .factory import build_search
 from .store import PgVectorSearch
 
@@ -35,4 +35,4 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    sys.exit(run(main()))

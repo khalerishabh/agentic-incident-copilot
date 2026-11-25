@@ -4,13 +4,13 @@ python scripts/mcp_call.py logs list_services
 python scripts/mcp_call.py logs error_summary service=payments since_minutes=30
 """
 
-import asyncio
 import json
 import sys
 
 from fastmcp import Client
 
 from copilot.config import settings
+from mcp_servers.common.runtime import run
 
 SERVERS = {
     "logs": settings.mcp.logs_url,
@@ -53,4 +53,4 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    sys.exit(run(main()))
