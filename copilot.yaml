@@ -97,6 +97,25 @@ integrations:
       max_patch_chars: 4000
       max_total_patch_chars: 20000
 
+  runbooks:
+    # pgvector: hybrid search (meaning + exact words) in the copilot's Postgres.
+    # keyword: in-memory text search, no database or embedding model needed.
+    backend: pgvector
+    directory: ./runbooks
+    max_chunk_chars: 1500
+    max_results: 5
+    embeddings:
+      # Local and private by default: run `ollama pull nomic-embed-text` once.
+      provider: ollama
+      model: nomic-embed-text
+      dimensions: 768
+      query_prefix: "search_query: "
+      document_prefix: "search_document: "
+      # base_url: http://localhost:11434
+      # OpenAI or any compatible API instead:
+      #   provider: openai, model: text-embedding-3-small, dimensions: 1536,
+      #   query_prefix: "", document_prefix: ""   (key from OPENAI_API_KEY)
+
 executor:
   backend: docker
   kubernetes_namespaces: [default]

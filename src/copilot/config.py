@@ -146,10 +146,33 @@ class CodeIntegration(BaseModel):
     github: GitHubConfig = Field(default_factory=GitHubConfig)
 
 
+class EmbeddingConfig(BaseModel):
+    provider: Literal["ollama", "openai"] = "ollama"
+    model: str = "nomic-embed-text"
+    dimensions: int = Field(default=768, ge=8, le=4096)
+    base_url: str | None = None
+    api_key: SecretStr | None = None
+    query_prefix: str = ""
+    document_prefix: str = ""
+    batch_size: int = Field(default=32, ge=1, le=512)
+    timeout_seconds: float = Field(default=60.0, gt=0)
+    max_attempts: int = Field(default=3, ge=1, le=6)
+
+
+class RunbooksIntegration(BaseModel):
+    backend: Literal["pgvector", "keyword"] = "pgvector"
+    directory: Path = Path("./runbooks")
+    table_prefix: str = Field(default="runbook", pattern=IDENTIFIER)
+    max_chunk_chars: int = Field(default=1500, ge=200, le=8000)
+    max_results: int = Field(default=5, ge=1, le=20)
+    embeddings: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+
+
 class IntegrationsConfig(BaseModel):
     logs: LogsIntegration = Field(default_factory=LogsIntegration)
     metrics: MetricsIntegration = Field(default_factory=MetricsIntegration)
     code: CodeIntegration = Field(default_factory=CodeIntegration)
+    runbooks: RunbooksIntegration = Field(default_factory=RunbooksIntegration)
 
 
 class SecretsInConfigError(ValueError):

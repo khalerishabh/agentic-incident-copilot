@@ -12,6 +12,21 @@ concurrency:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: copilot
+          POSTGRES_PASSWORD: copilot
+          POSTGRES_DB: copilot
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U copilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      COPILOT_TEST_POSTGRES_URL: postgresql://copilot:copilot@localhost:5432/copilot
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

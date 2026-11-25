@@ -1,38 +1,76 @@
 import os
-import re
-from pathlib import Path
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
-RUNBOOK_DIR = Path(os.getenv("RUNBOOK_DIR", "./runbooks"))
-mcp = FastMCP("runbook")
+from copilot.config import settings
+from copilot.telemetry import setup_logging
+
+from ..common.server import health_payload, tool_errors
+from .factory import build_search
+from .store import PgVectorSearch
+from .tools import RunbookTools
+
+cfg = settings.integrations.runbooks
+search = build_search(settings)
+tools = RunbookTools(search, cfg)
 
 
-def _tokens(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+", text.lower()))
+@asynccontextmanager
+async def lifespan(_: FastMCP) -> AsyncIterator[None]:
+    if isinstance(search, PgVectorSearch):
+        await search.open()
+    try:
+        yield
+    finally:
+        await search.aclose()
+
+
+mcp = FastMCP("runbook", lifespan=lifespan)
 
 
 @mcp.tool
-def search_runbooks(query: str, k: int = 3) -> list[dict]:
-    """Find runbook sections relevant to a symptom description.
-    v0 uses keyword overlap; replace with pgvector embeddings in week 2."""
-    q = _tokens(query)
-    scored = []
-    for path in RUNBOOK_DIR.glob("*.md"):
-        text = path.read_text()
-        overlap = len(q & _tokens(text))
-        if overlap:
-            scored.append((overlap, path.stem, text[:1500]))
-    scored.sort(reverse=True)
-    return [{"runbook": name, "score": s, "content": body} for s, name, body in scored[:k]]
+@tool_errors
+async def search_runbooks(query: str, k: int = 3) -> dict[str, Any]:
+    """Find runbook sections relevant to a symptom, error message or alert, best first.
+    Matches both meaning and exact words, so paste error text as-is."""
+    return await tools.search_runbooks(query, k)
 
 
 @mcp.tool
-def get_runbook(name: str) -> str:
-    """Full text of one runbook by name."""
-    path = RUNBOOK_DIR / f"{name}.md"
-    return path.read_text() if path.exists() else f"no runbook named {name}"
+@tool_errors
+async def list_runbooks() -> list[dict[str, str]]:
+    """Names and titles of all runbooks."""
+    return await tools.list_runbooks()
+
+
+@mcp.tool
+@tool_errors
+async def get_runbook(name: str) -> dict[str, Any]:
+    """Full text of one runbook by name, as listed by list_runbooks."""
+    return await tools.get_runbook(name)
+
+
+@mcp.custom_route("/healthz", methods=["GET"])
+async def healthz(_: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/readyz", methods=["GET"])
+async def readyz(_: Request) -> JSONResponse:
+    try:
+        stats = await search.stats()
+        if not stats.get("chunks"):
+            raise RuntimeError("runbook index is empty; run python -m mcp_servers.runbook.index")
+    except Exception as exc:
+        return JSONResponse(health_payload("runbook", search.name, exc), status_code=503)
+    return JSONResponse({**health_payload("runbook", search.name, None), **stats})
 
 
 if __name__ == "__main__":
+    setup_logging()
     mcp.run(transport="http", host="0.0.0.0", port=int(os.getenv("PORT", "9104")))
