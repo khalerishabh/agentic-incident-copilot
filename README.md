@@ -21,7 +21,8 @@ src/mcp_servers/         read-only MCP servers (FastMCP, streamable HTTP)
   metrics/   :9102       compare_services, service_red, red_timeline, resource_usage,
                          upstream_errors, run_promql (Prometheus HTTP API)
   github/    :9103       service_repos, recent_commits, commit_diff
-  runbook/   :9104       search_runbooks, get_runbook (keyword v0, pgvector in M1 PR3)
+  runbook/   :9104       search_runbooks, list_runbooks, get_runbook
+                         backends: pgvector hybrid search (default) or in-memory keyword
 src/copilot/             the LangGraph agent
   state.py               typed state (Alert, Evidence, RootCause, ProposedFix)
   graph.py               supervisor -> investigators -> rca_writer -> approval -> executor
@@ -124,6 +125,28 @@ Each service maps to a repository and the paths that hold its code (`services[].
 service. `commit_diff` lists the service's own files first, skips lock files and binaries,
 and caps patch size per file and per commit. Set `GITHUB_TOKEN` to a read-only token;
 without one GitHub allows 60 requests an hour. `api_url` supports GitHub Enterprise Server.
+
+### Runbooks
+
+Markdown files in `runbooks/` are split into sections (each keeps its heading path, such as
+"Diagnosis > Database") and stored in the copilot's Postgres with pgvector. Search fuses two
+rankings: vector similarity, which matches meaning ("memory keeps growing" finds "memory
+leak"), and full-text search, which matches exact words, so pasted error messages such as
+`QueuePool limit reached` always hit. If the embedding model is unreachable, search keeps
+working on text alone and says so in its result.
+
+```powershell
+ollama pull nomic-embed-text          # once; or switch to OpenAI in copilot.yaml
+python -m mcp_servers.runbook.index   # after adding or editing runbooks
+```
+
+Indexing is incremental: only new or changed sections are embedded, and sections of deleted
+runbooks are removed. Changing the embedding model or dimensions rebuilds the index. The
+server's `/readyz` returns 503 until the index has content. Set `backend: keyword` to skip
+Postgres and embeddings entirely.
+
+Database tests run when `COPILOT_TEST_POSTGRES_URL` points at a Postgres with pgvector
+(CI provides one); otherwise they are skipped.
 
 Each MCP server also serves `/healthz` and `/readyz`; `/readyz` checks its backend.
 
