@@ -74,3 +74,16 @@ def test_plain_variables_in_dotenv_reach_the_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "real-env-wins")
     load_dotenv(tmp_path / ".env", override=False)
     assert os.environ["GITHUB_TOKEN"] == "real-env-wins"
+
+
+def test_nested_env_override_keeps_sibling_values_from_yaml(tmp_path, monkeypatch):
+    path = tmp_path / "copilot.yaml"
+    path.write_text(
+        "integrations:\n  logs:\n    max_lines: 77\n    loki:\n"
+        "      url: http://localhost:3100\n      line_format: logfmt\n"
+    )
+    monkeypatch.setenv("COPILOT_INTEGRATIONS__LOGS__LOKI__URL", "http://loki:3100")
+    logs = _load(path).integrations.logs
+    assert logs.loki.url == "http://loki:3100"
+    assert logs.loki.line_format == "logfmt"
+    assert logs.max_lines == 77

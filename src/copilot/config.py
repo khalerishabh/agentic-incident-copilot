@@ -170,6 +170,7 @@ class RunbooksIntegration(BaseModel):
     table_prefix: str = Field(default="runbook", pattern=IDENTIFIER)
     max_chunk_chars: int = Field(default=1500, ge=200, le=8000)
     max_results: int = Field(default=5, ge=1, le=20)
+    index_on_start: bool = False
     embeddings: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
 
