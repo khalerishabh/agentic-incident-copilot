@@ -16,6 +16,35 @@ x-demo-app: &demo
   depends_on:
     - postgres
 
+# The copilot image runs every MCP server. Inside the stack they reach Loki, Prometheus and
+# Postgres by service name, so those URLs are overridden here; copilot.yaml keeps the
+# localhost URLs for running servers directly on your machine.
+x-copilot: &copilot
+  build:
+    context: .
+    dockerfile: Dockerfile
+  volumes:
+    - ./copilot.yaml:/app/copilot.yaml:ro
+    - ./runbooks:/app/runbooks:ro
+  environment: &copilot-env
+    COPILOT_POSTGRES_URL: postgresql://copilot:copilot@postgres:5432/copilot
+    COPILOT_INTEGRATIONS__LOGS__BACKEND: loki
+    COPILOT_INTEGRATIONS__LOGS__LOKI__URL: http://loki:3100
+    COPILOT_INTEGRATIONS__METRICS__PROMETHEUS__URL: http://prometheus:9090
+    COPILOT_INTEGRATIONS__RUNBOOKS__BACKEND: ${RUNBOOKS_BACKEND:-pgvector}
+    COPILOT_INTEGRATIONS__RUNBOOKS__INDEX_ON_START: "true"
+    COPILOT_INTEGRATIONS__RUNBOOKS__EMBEDDINGS__BASE_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+    GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+
+x-ready: &ready
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -27,6 +56,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U copilot -d copilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   gateway:
     <<: *demo
@@ -92,6 +126,48 @@ services:
     ports: ["12345:12345"]
     depends_on:
       - loki
+
+  mcp-logs:
+    <<: *copilot
+    command: ["python", "-m", "mcp_servers.logs.server"]
+    ports: ["9101:9101"]
+    environment: { <<: *copilot-env, PORT: "9101" }
+    depends_on: [loki]
+    healthcheck:
+      <<: *ready
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9101/readyz', timeout=3)"]
+
+  mcp-metrics:
+    <<: *copilot
+    command: ["python", "-m", "mcp_servers.metrics.server"]
+    ports: ["9102:9102"]
+    environment: { <<: *copilot-env, PORT: "9102" }
+    depends_on: [prometheus]
+    healthcheck:
+      <<: *ready
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9102/readyz', timeout=3)"]
+
+  mcp-github:
+    <<: *copilot
+    command: ["python", "-m", "mcp_servers.github.server"]
+    ports: ["9103:9103"]
+    environment: { <<: *copilot-env, PORT: "9103" }
+    healthcheck:
+      <<: *ready
+      # Liveness only: GitHub being briefly unreachable should not mark the stack unhealthy.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9103/healthz', timeout=3)"]
+
+  mcp-runbook:
+    <<: *copilot
+    command: ["python", "-m", "mcp_servers.runbook.server"]
+    ports: ["9104:9104"]
+    environment: { <<: *copilot-env, PORT: "9104" }
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *ready
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9104/readyz', timeout=3)"]
 
 volumes:
   pgdata:

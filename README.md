@@ -47,26 +47,50 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 copy .env.example .env
+ollama pull nomic-embed-text             # runbook embeddings, once
 
-pytest                                   # graph + guardrail tests, no infra needed
+pytest                                   # unit tests, no infra needed
+docker compose up -d --build --wait      # demo app, observability, Postgres, MCP servers
+```
 
-docker compose up -d --build             # fake app, Prometheus, Alertmanager, Postgres
+`--wait` returns once every service with a health check is healthy. Then try a fault:
+
+```powershell
 python -m demo.inject enable payments error_rate --param probability=0.4
-# watch http://localhost:9090/alerts, then:
+python scripts/mcp_call.py metrics upstream_errors window=1m
+python scripts/mcp_call.py logs error_summary service=payments
 python -m demo.inject disable payments error_rate
 ```
 
-Run the MCP servers and the copilot API locally (one terminal each):
+### What runs where
 
-```powershell
-python -m mcp_servers.logs.server
-python -m mcp_servers.metrics.server
-python -m mcp_servers.github.server
-python -m mcp_servers.runbook.server
-uvicorn copilot.api:app --app-dir src --port 8080
-```
+| Service | Port | Notes |
+|---------|------|-------|
+| gateway, orders, payments, inventory | 8000-8003 | demo app with fault injection |
+| prometheus, alertmanager | 9090, 9093 | |
+| loki, alloy | 3100, 12345 | Alloy ships demo container logs to Loki |
+| postgres (pgvector) | `POSTGRES_PORT`, default 5432 | copilot state and runbook index |
+| mcp-logs, mcp-metrics, mcp-github, mcp-runbook | 9101-9104 | one image, health-checked |
 
-Alertmanager posts to `host.docker.internal:8080/alerts`, so the API on your machine receives alerts.
+Inside the stack the MCP servers reach Loki, Prometheus and Postgres by service name; Compose
+sets those URLs, so `copilot.yaml` keeps the `localhost` URLs for running servers directly
+on your machine. The runbook server indexes `runbooks/` at startup and uses the Ollama on
+your machine (`OLLAMA_URL`, default `http://host.docker.internal:11434`). Set
+`RUNBOOKS_BACKEND=keyword` in `.env` to skip embeddings.
+
+To work on one MCP server outside Docker, stop its container first so the port is free:
+`docker compose stop mcp-logs`, then `python -m mcp_servers.logs.server`.
+
+The copilot API itself still runs on your machine for now:
+`uvicorn copilot.api:app --app-dir src --port 8080`. Alertmanager posts to
+`host.docker.internal:8080/alerts`.
+
+### End-to-end tests
+
+With the stack up, `E2E=1 pytest tests/e2e` (PowerShell: `$env:E2E="1"; pytest tests/e2e`)
+injects a real fault and checks it through the MCP servers: metrics trace it to payments,
+the errors reach the logs tools through Loki, and runbook search finds the right runbook.
+CI runs the same tests on every push.
 
 ## Configuration
 
@@ -170,7 +194,8 @@ mypy
 pytest
 ```
 
-CI runs the same checks plus a Docker image build on every push and pull request.
+CI runs the same checks on every push and pull request, with a pgvector Postgres for the
+database tests, then starts the full Docker Compose stack and runs the end-to-end tests.
 
 ## Design rules worth defending
 
